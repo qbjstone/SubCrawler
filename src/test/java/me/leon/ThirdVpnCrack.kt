@@ -2,20 +2,17 @@ package me.leon
 
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import me.leon.domain.Quark
-import me.leon.domain.Sumurai
-import me.leon.support.DISPATCHER
-import me.leon.support.b64Decode
-import me.leon.support.connect
-import me.leon.support.fromJson
-import me.leon.support.ping
-import me.leon.support.readFromNet
+import me.leon.support.*
 import org.junit.jupiter.api.Test
 
 class ThirdVpnCrack {
+
+    private val quarkVpnDir = "$ROOT/vpn/quark"
+
     @Test
     fun parseNet() {
         val key = SimpleDateFormat("yyyyMMdd").format(Date()).repeat(4)
@@ -29,24 +26,6 @@ class ThirdVpnCrack {
             .split("\n")
             .also { println(it.joinToString("|")) }
     }
-
-    @Test
-    fun parseSumaraiVpn() {
-        runBlocking {
-            "https://server.svipvpn.com/opconf.json"
-                .readFromNet()
-                .fromJson<Sumurai>()
-                .data
-                .items
-                .flatMap { it.items }
-                .mapNotNull { Parser.parse(it.ovpn.b64Decode()) }
-                .map { it to async(DISPATCHER) { it.SERVER.connect(it.serverPort, 2000) } }
-                .filter { it.second.await() > -1 }
-                .forEach { println(it.first.toUri()) }
-        }
-    }
-
-    private val quarkVpnDir = "$ROOT/vpn/quark"
 
     @Test
     fun parseQuarkVpn() {
