@@ -1,18 +1,20 @@
 package me.leon.ip
 
-import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
-import me.leon.FAIL_IPS
+import me.leon.*
 import me.leon.support.*
 import org.junit.jupiter.api.Test
+import kotlin.system.measureTimeMillis
 
 class IpFilterTest {
 
     @Test
     fun reTestFailIps() {
-        failIp()
-        removeOkPorts()
+        repeat(5) {
+            failIp()
+            removeOkPorts()
+        }
     }
 
     @Test
@@ -24,13 +26,12 @@ class IpFilterTest {
 
         runBlocking {
             measureTimeMillis {
-                FAIL_IPS
-                    .readLines()
+                FAIL_IPS.readLines()
                     .also { println("before ${it.size}") }
                     .sorted()
                     .also {
                         total.addAll(it)
-                        println("after duplicate and sort ${total.size}")
+                        println("after deduplicate and sort ${total.size}")
                         FAIL_IPS.writeLine()
                         FAIL_IPS.writeLine(total.joinToString("\n"))
                     }
@@ -57,7 +58,9 @@ class IpFilterTest {
                         it.removeAll(failPorts)
                         it.addAll(failIps)
                     }
-                    .filterNot { it.contains(":") && failIps.contains(it.substringBeforeLast(":")) }
+                    .filterNot {
+                        it.contains(":") && failIps.contains(it.substringBeforeLast(":"))
+                    }
                     .sorted()
                     .also {
                         FAIL_IPS.writeLine()
@@ -73,18 +76,19 @@ class IpFilterTest {
     fun removeOkPorts() {
         val total = mutableSetOf<String>()
         runBlocking {
-            FAIL_IPS
-                .readLines()
+            FAIL_IPS.readLines()
                 .also {
                     total.addAll(it)
                     println("before ${total.size}")
                 }
-                .filter { it.contains(":") }
+                .filter { it.contains(":") && !it.contains("/") && !it.contains(" ") }
                 .map {
                     it to
-                        async(DISPATCHER) {
-                            it.substringBeforeLast(":").connect(it.substringAfterLast(":").toInt())
-                        }
+                            async(DISPATCHER) {
+                                runCatching {
+                                    it.substringBeforeLast(":").connect(it.substringAfterLast(":").toInt())
+                                }.getOrElse { -1 }
+                            }
                 }
                 .filter { it.second.await() > -1 }
                 .forEach {
@@ -96,4 +100,18 @@ class IpFilterTest {
         FAIL_IPS.writeLine()
         FAIL_IPS.writeLine(total.joinToString("\n"))
     }
+
+    @Test
+    fun checkAbuseIp() {
+        Parser.parseFromSub("C:\\Users\\Leon\\Desktop\\local.yaml").map { it.SERVER }
+            .distinct()
+            .also { println(it.size) }
+            .filterNot { it.contains("[a-zA-Z]".toRegex()) }
+            .also { println(it) }
+            .forEach {
+                println("$it ${it.ipScore().lvl}")
+            }
+    }
+
 }
+
